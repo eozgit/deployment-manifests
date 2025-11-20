@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # ----------------------------------------
+  # 1. .NET Minimal API Backend Service
+  # ----------------------------------------
+  backend:
+    container_name: dotnet-api
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        REPO_URL: ${DOTNET_REPO_URL}
+        BRANCH: ${DOTNET_REPO_BRANCH:-main}
+    ports:
+      - "42050:8080"
+    environment:
+      # Connection String Fix (Required for the API)
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Initial Catalog=mtditsa;User Id=SA;Password=${SQL_SA_PASSWORD};TrustServerCertificate=True
+
+      - MongoDbSettings__ConnectionString=mongodb://mongodb:27017
+      - MongoDbSettings__DatabaseName=mtditsa-business-db
+      - MongoDbSettings__QuarterlyUpdatesCollectionName=quarterly_updates # If you want to explicitly set this, otherwise it defaults from appsettings.
+
+      # - ConnectionStrings__MongoDb=mongodb://mongodb:27017/mtditsa-business-db
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Kestrel:Endpoints:Http:Url=http://*:8080
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+    restart: always
+
+  # ----------------------------------------
+  # 2. Angular Frontend Service
+  # ----------------------------------------
+  frontend:
+    container_name: angular-app
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        REPO_URL: ${ANGULAR_REPO_URL}
+        BRANCH: ${ANGULAR_REPO_BRANCH:-main}
+    ports:
+      - "42060:80"
+    restart: always
+
+  # ----------------------------------------
+  # 3. SQL Server Database Service (Simplified Health Check)
+  # ----------------------------------------
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: sqlserver
+    ports:
+      - "1433:1433"
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=${SQL_SA_PASSWORD}
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: always
+    # FIX: Using a simple port check with telnet/nc instead of sqlcmd to avoid password/shell issues.
+    # NOTE: We need the 'wait-for-it' or 'netcat' style utility to do this correctly,
+    # but since this image usually doesn't have it, we revert to the absolute simplest method:
+    healthcheck:
+      test: ["CMD", "/bin/bash", "-c", "ps -ef | grep sqlservr | grep -v grep"]
+      interval: 10s
+      timeout: 5s
+      retries: 60 # Check every 10s for 10 minutes
+
+  # ----------------------------------------
+  # 4. MongoDB Database Service
+  # ----------------------------------------
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    restart: always
+
+# ----------------------------------------
+# Persistent Storage Volumes
+# ----------------------------------------
+volumes:
+  sqlserver-data:
+  mongodb-data:

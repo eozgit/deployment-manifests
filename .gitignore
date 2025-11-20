@@ -1,0 +1,20 @@
+# --- Minimal .gitignore for Deployment Configuration Repos ---
+
+# 1. Operating System artifacts
+
+.DS_Store
+Thumbs.db
+
+# 2. Logs and temporary files
+
+*.log
+*.tmp
+
+# 3. Development / IDE files
+
+.idea/
+.vscode/
+
+# 4. Docker-specific (if running local tests outside of docker-compose)
+
+# Note: Docker Compose volumes and build cache are typically handled outside the repo.
